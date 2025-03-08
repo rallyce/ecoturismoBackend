@@ -1,0 +1,20 @@
+{
+  "name": "rds_project",
+  "version": "0.1.0",
+  "bin": {
+    "rds_project": "bin/rds_project.js"
+  },
+  "scripts": {
+    "build": "echo \"The build step is not required when using JavaScript!\" && exit 0",
+    "cdk": "cdk",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "aws-cdk": "2.1003.0",
+    "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.181.1",
+    "constructs": "^10.0.0"
+  }
+}
