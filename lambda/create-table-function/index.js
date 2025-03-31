@@ -15,6 +15,7 @@ const connection = mysql.createPool({
     const table4 = 'CREATE TABLE IF NOT EXISTS additionalServices (serviceId VARCHAR(255) PRIMARY KEY, cost DECIMAL);'
     const table5 = `CREATE TABLE IF NOT EXISTS reservations (
         reservationId VARCHAR(100) PRIMARY KEY,
+        paymentId VARCHAR(100),
         checkInDate DATE,
         checkOutDate DATE,
         updatingDate DATE, 
@@ -48,16 +49,11 @@ const connection = mysql.createPool({
 
     const table8 = `CREATE TABLE IF NOT EXISTS payments (
         paymentId VARCHAR(255),
+        userId VARCHAR(255),
         payment_method VARCHAR(255),
         amount DECIMAL,
+        status VARCHAR(100),
         PRIMARY KEY (paymentId)
-        );
-        `;
-
-    const table9 = `CREATE TABLE IF NOT EXISTS reservations_payments (
-        guestId VARCHAR(255),
-        paymentId VARCHAR(255),
-        PRIMARY KEY (guestId, paymentId)
         );
         `;
 
@@ -84,11 +80,13 @@ const connection = mysql.createPool({
     const foreignKey7 = `ALTER TABLE guests 
     ADD FOREIGN KEY (reservationId) REFERENCES reservations(reservationId) ON DELETE CASCADE;`;
 
-    const foreignKey8 = `ALTER TABLE reservations_payments 
-    ADD FOREIGN KEY (guestId) REFERENCES guests(guestId) ON DELETE CASCADE;`;
+    const foreignKey8 = `ALTER TABLE payments 
+    ADD FOREIGN KEY (userId) REFERENCES Users(userId) ON DELETE CASCADE;`;
 
-    const foreignKey9 = `ALTER TABLE reservations_payments 
+    const foreignKey9 = `ALTER TABLE reservations 
     ADD FOREIGN KEY (paymentId) REFERENCES payments(paymentId) ON DELETE CASCADE;`;
+
+
 
 
     await con.execute(table1)
@@ -99,7 +97,6 @@ const connection = mysql.createPool({
     await con.execute(table6)
     await con.execute(table7)
     await con.execute(table8)
-    await con.execute(table9)
     await con.execute(foreignKey1)
     await con.execute(foreignKey2)
     await con.execute(foreignKey3)
@@ -109,7 +106,6 @@ const connection = mysql.createPool({
     await con.execute(foreignKey7)
     await con.execute(foreignKey8)
     await con.execute(foreignKey9)
-
     con.release();
     
     return { statusCode: 200, body: 'Tables created and updated successfully' };
