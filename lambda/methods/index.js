@@ -1,5 +1,4 @@
 const mysql = require('mysql2/promise');
-const axios = require("axios");
 const { randomUUID } = require("crypto");
 
 const pool = mysql.createPool({
@@ -12,26 +11,13 @@ const pool = mysql.createPool({
   queueLimit: 0,
 });
 
-const SECRET_HEADER_NAME = "X-CloudFront-Secret";
-const SECRET_HEADER_VALUE = "my-secret-key";
+
 
 exports.handler = async (event) => {
   // TODO implement
 
 
   try {
-    const secretHeader = event.headers?.[SECRET_HEADER_NAME.toLowerCase()];
-    if (secretHeader !== SECRET_HEADER_VALUE) {
-      return {
-        statusCode: 403,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type,Authorization,X-CloudFront-Secret",
-        },
-        body: JSON.stringify({ message: "Forbidden: Invalid CloudFront request" }),
-      };
-    }
 
     let connection = await pool.getConnection();
     //const dynamo = await axios.get("https://7bapf7fj1j.execute-api.us-east-1.amazonaws.com/prod/hosting/6bab77f8-894f-45fa-ac87-56f86f7cf907");
@@ -153,8 +139,8 @@ exports.handler = async (event) => {
 
         let reservation_id = randomUUID(); 
         
-        const checkInDate = body.checkInDate
-        const checkOutDate = body.checkOutDate
+        const checkInDate = new Date(body.checkInDate);
+        const checkOutDate = new Date(body.checkOutDate);
         const userId = body.userId 
         const hotelId = body.hotelId
         const roomId = body.roomId
@@ -198,15 +184,14 @@ exports.handler = async (event) => {
 
         costo_ponderado = suma + costo_basico;
 
-        await connection.execute(`INSERT INTO reservations (reservationId, checkInDate, checkOutDate, userId, hotelId, roomId, basic_value, taxes_value, total_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+        /*await connection.execute(`INSERT INTO reservations (reservationId, checkInDate, checkOutDate, userId, hotelId, roomId, basic_value, taxes_value, total_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
           [reservation_id, checkInDate, checkOutDate, userId, hotelId, roomId, 500, 19, 1000]
-        );
+        );*/
+
+        const timeDifference = checkOutDate - checkInDate;
+        const numberOfNights = timeDifference / (1000 * 60 * 60 * 24);
 
 
-        const [dateSubstraction] = await connection.execute(`SELECT DATEDIFF(checkOutDate, checkInDate) AS days_difference FROM reservations WHERE reservationId = ?`, 
-        [reservation_id])
-
-        const numberOfNights = dateSubstraction[0]?.days_difference || 0;
         let subtotal1 = numberOfNights * costo_ponderado 
         totalReservation = subtotal1 + subtotal2
 
