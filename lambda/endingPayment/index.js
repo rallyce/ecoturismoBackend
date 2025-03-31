@@ -107,8 +107,29 @@ async function handleCreate(connection, body) {
     if (!data.name || !data.lastname || !data.identificationNumber || !data.phone) {
         throw new Error('Faltan campos requeridos: name, lastname, identificationNumber, phone');
     }
+    const reservation_id = "2i1391283129";
+    const checkInDate = "2025-02-02"
+    const checkOutDate = "2025-02-03"
+    const userId = "9fa9253b-8bee-4caa-a0e2-abd2af6a4917"
+    const hotelId = "af46ce9a-1464-44ba-a605-6274b38a6328"
+    const roomId = "799cba45-6234-455b-956c-d5cdd87faeb2"
+
     const guestId = (0, uuid_1.v4)();
-    await connection.execute(`INSERT INTO guest (guestId, name, lastname, identificationType, identificationNumber, phone, emergencyPhone, reservationId) 
+    await connection.execute(`INSERT INTO reservations (
+        reservationId, 
+        checkInDate, 
+        checkOutDate, 
+        userId, 
+        hotelId, 
+        roomId, 
+        basic_value, 
+        taxes_value, 
+        total_value) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+          [reservation_id, checkInDate, checkOutDate, userId, hotelId, roomId, 500, 19, 1000]
+    );
+
+    await connection.execute(`INSERT INTO guests (guestId, name, lastname, identificationType, identificationNumber, phone, emergencyPhone, reservationId) 
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
         guestId,
         data.name,
