@@ -23,7 +23,6 @@ const getDbConnection = async () => {
 };
 const handler = async (event) => {
     console.log('Incoming event:', JSON.stringify(event, null, 2));
-    // Manejo de CORS para preflight
     if (event.httpMethod === 'OPTIONS') {
         return {
             statusCode: 200,
@@ -35,13 +34,6 @@ const handler = async (event) => {
         const connection = await getDbConnection();
         const { httpMethod, pathParameters, body } = event;
         const guestId = pathParameters?.guest_id;
-        if (!httpMethod) {
-            return {
-                statusCode: 400,
-                headers: CORS_HEADERS,
-                body: JSON.stringify({ error: 'Método HTTP no definido' })
-            };
-        }
         switch (httpMethod) {
             case 'POST':
                 if (!body) {
@@ -57,18 +49,13 @@ const handler = async (event) => {
                     ? await handleGetOne(connection, guestId)
                     : await handleGetAll(connection);
             case 'PUT':
-                if (!guestId) {
+                if (!guestId || !body) {
                     return {
                         statusCode: 400,
                         headers: CORS_HEADERS,
-                        body: JSON.stringify({ error: 'Se requiere el ID del huésped' })
-                    };
-                }
-                if (!body) {
-                    return {
-                        statusCode: 400,
-                        headers: CORS_HEADERS,
-                        body: JSON.stringify({ error: 'Se requiere un cuerpo en la solicitud' })
+                        body: JSON.stringify({
+                            error: !guestId ? 'Se requiere el ID del huésped' : 'Se requiere un cuerpo en la solicitud'
+                        })
                     };
                 }
                 return await handleUpdate(connection, guestId, body);
@@ -95,61 +82,82 @@ const handler = async (event) => {
             statusCode: error instanceof Error && error.message.includes('no encontrado') ? 404 : 500,
             headers: CORS_HEADERS,
             body: JSON.stringify({
-                error: error instanceof Error ? error.message : 'Error interno del servidor',
-                ...(process.env.NODE_ENV === 'development' && error instanceof Error ? { stack: error.stack } : {})
+                error: error instanceof Error ? error.message : 'Error interno del servidor'
             })
         };
     }
 };
 exports.handler = handler;
 async function handleCreate(connection, body) {
+    // Parsear y normalizar a array
     const data = JSON.parse(body);
-    if (!data.name || !data.lastname || !data.identificationNumber || !data.phone) {
-        throw new Error('Faltan campos requeridos: name, lastname, identificationNumber, phone');
+    const guests = Array.isArray(data) ? data : [data];
+    // Validar campos requeridos
+    const requiredFields = ['name', 'lastname', 'identificationNumber', 'phone'];
+    const invalidGuests = guests.filter(guest => requiredFields.some(field => !guest[field]));
+    if (invalidGuests.length > 0) {
+        throw new Error(`Faltan campos requeridos en ${invalidGuests.length} huésped(es)`);
     }
-    const reservation_id = (0, uuid_1.v4)();
-    const checkInDate = data.checkInDate
-    const checkOutDate = data.checkOutDate
-    const userId = data.userId
-    const hotelId = data.hotelId
-    const roomId = data.roomId
-
-    const guestId = (0, uuid_1.v4)();
-    await connection.execute(`INSERT INTO reservations (
-        reservationId, 
-        checkInDate, 
-        checkOutDate, 
-        userId, 
-        hotelId, 
-        roomId, 
-        basic_value, 
-        taxes_value, 
-        total_value) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
-          [reservation_id, checkInDate, checkOutDate, userId, hotelId, roomId, 500, 19, 1000]
-    );
-
-    await connection.execute(`INSERT INTO guests (guestId, name, lastname, identificationType, identificationNumber, phone, emergencyPhone, reservationId) 
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [
-        guestId,
-        data.name,
-        data.lastname,
-        data.identificationType || 'Cédula de ciudadanía',
-        data.identificationNumber,
-        data.phone,
-        data.emergencyPhone || null,
-        data.reservation_id || null
-    ]);
-    return {
-        statusCode: 201,
-        headers: CORS_HEADERS,
-        body: JSON.stringify({
-            message: 'Huésped creado exitosamente',
-            guest_id: guestId,
-            ...data
-        })
-    };
+    // Iniciar transacción
+    await connection.beginTransaction();
+    try {
+        // Preparar datos con UUIDs
+        const guestsWithIds = guests.map(guest => ({
+            guest_id: (0, uuid_1.v4)(),
+            name: guest.name,
+            lastname: guest.lastname,
+            identificationType: guest.identificationType || 'Cédula de ciudadanía',
+            identificationNumber: guest.identificationNumber,
+            phone: guest.phone,
+            emergencyPhone: guest.emergencyPhone || null,
+            reservation_id: guest.reservation_id || null
+        }));
+        // Inserción masiva de huéspedes
+        await connection.query(`INSERT INTO guest 
+        (guest_id, name, lastname, identificationType, identificationNumber, phone, emergencyPhone, reservation_id) 
+       VALUES ?`, [guestsWithIds.map(g => [
+                g.guest_id,
+                g.name,
+                g.lastname,
+                g.identificationType,
+                g.identificationNumber,
+                g.phone,
+                g.emergencyPhone,
+                g.reservation_id
+            ])]);
+        // ACTUALIZACIÓN DE PAYMENT (NUEVA FUNCIONALIDAD)
+        let paymentUpdated = false;
+        if (guests[0].reservation_id) {
+            const [paymentResult] = await connection.execute(`UPDATE payments 
+         SET status = 'Reserva en progreso' 
+         WHERE paymentId IN (
+           SELECT payment_id FROM reservation_payments WHERE reservation_id = ?
+         ) AND status = 'Pendiente de pago'`, [guests[0].reservation_id]);
+            paymentUpdated = paymentResult.affectedRows > 0;
+        }
+        await connection.commit();
+        return {
+            statusCode: 201,
+            headers: CORS_HEADERS,
+            body: JSON.stringify({
+                message: guests.length > 1
+                    ? `${guests.length} huéspedes creados exitosamente`
+                    : 'Huésped creado exitosamente',
+                count: guests.length,
+                guests: guestsWithIds,
+                paymentUpdated: paymentUpdated
+            })
+        };
+    }
+    catch (error) {
+        await connection.rollback();
+        throw error;
+    }
+    finally {
+        await connection.end();
+    }
 }
+// Los demás métodos permanecen EXACTAMENTE IGUAL como los tenías
 async function handleGetAll(connection) {
     const [rows] = await connection.execute('SELECT * FROM guest');
     return {
@@ -180,7 +188,6 @@ async function handleUpdate(connection, guestId, body) {
     if (!result.affectedRows) {
         throw new Error('Huésped no encontrado');
     }
-    // Obtener el huésped actualizado para devolverlo
     const [updatedRows] = await connection.execute('SELECT * FROM guest WHERE guest_id = ?', [guestId]);
     return {
         statusCode: 200,
