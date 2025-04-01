@@ -113,7 +113,7 @@ async function handleCreate(connection, body) {
             reservation_id: guest.reservation_id || null
         }));
         // Inserción masiva de huéspedes
-        await connection.query(`INSERT INTO guest 
+        await connection.query(`INSERT INTO guests 
         (guestId, name, lastname, identificationType, identificationNumber, phone, emergencyPhone, reservationId) 
        VALUES ?`, [guestsWithIds.map(g => [
                 g.guest_id,
@@ -125,28 +125,14 @@ async function handleCreate(connection, body) {
                 g.emergencyPhone,
                 g.reservation_id
             ])]);
-        // // ACTUALIZACIÓN DE PAYMENT (NUEVA FUNCIONALIDAD)
-        // let paymentUpdated = false;
-        // if (guests[0].reservation_id) {
-        //   const [paymentResult] = await connection.execute(
-        //     `UPDATE payments 
-        //      SET status = 'Reserva en progreso' 
-        //      WHERE paymentId IN (
-        //        SELECT payment_id FROM reservation_payments WHERE reservation_id = ?
-        //      ) AND status = 'Pendiente de pago'`,
-        //     [guests[0].reservation_id]
-        //   );
-        //   paymentUpdated = (paymentResult as any).affectedRows > 0;
-        // }
-        // await connection.commit();
-        // ACTUALIZACIÓN DE PAYMENT - VERSIÓN CORREGIDA
+
         let paymentUpdated = false;
         if (guests[0]?.reservation_id) {
             try {
                 const [paymentResult] = await connection.execute(`
              UPDATE payments 
              SET status = 'Reserva en progreso' 
-             WHERE reservation_id = ? 
+             WHERE reservationId = ? 
              AND status = 'Pendiente de pago'
              `, [guests[0].reservation_id]);
                 paymentUpdated = paymentResult.affectedRows > 0;
@@ -180,7 +166,7 @@ async function handleCreate(connection, body) {
 }
 // Los demás métodos permanecen EXACTAMENTE IGUAL como los tenías
 async function handleGetAll(connection) {
-    const [rows] = await connection.execute('SELECT * FROM guest');
+    const [rows] = await connection.execute('SELECT * FROM guests');
     return {
         statusCode: 200,
         headers: CORS_HEADERS,
@@ -188,7 +174,7 @@ async function handleGetAll(connection) {
     };
 }
 async function handleGetOne(connection, guestId) {
-    const [rows] = await connection.execute('SELECT * FROM guest WHERE guest_id = ?', [guestId]);
+    const [rows] = await connection.execute('SELECT * FROM guests WHERE guestId = ?', [guestId]);
     if (!Array.isArray(rows) || rows.length === 0) {
         throw new Error('Huésped no encontrado');
     }
@@ -205,11 +191,11 @@ async function handleUpdate(connection, guestId, body) {
     if (!updates) {
         throw new Error('No hay campos para actualizar');
     }
-    const [result] = await connection.execute(`UPDATE guest SET ${updates} WHERE guest_id = ?`, [...values, guestId]);
+    const [result] = await connection.execute(`UPDATE guests SET ${updates} WHERE guestId = ?`, [...values, guestId]);
     if (!result.affectedRows) {
         throw new Error('Huésped no encontrado');
     }
-    const [updatedRows] = await connection.execute('SELECT * FROM guest WHERE guest_id = ?', [guestId]);
+    const [updatedRows] = await connection.execute('SELECT * FROM guest WHERE guestId = ?', [guestId]);
     return {
         statusCode: 200,
         headers: CORS_HEADERS,
@@ -220,7 +206,7 @@ async function handleUpdate(connection, guestId, body) {
     };
 }
 async function handleDelete(connection, guestId) {
-    const [result] = await connection.execute('DELETE FROM guest WHERE guest_id = ?', [guestId]);
+    const [result] = await connection.execute('DELETE FROM guests WHERE guestId = ?', [guestId]);
     if (!result.affectedRows) {
         throw new Error('Huésped no encontrado');
     }
