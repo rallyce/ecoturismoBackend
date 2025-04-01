@@ -107,12 +107,12 @@ async function handleCreate(connection, body) {
     if (!data.name || !data.lastname || !data.identificationNumber || !data.phone) {
         throw new Error('Faltan campos requeridos: name, lastname, identificationNumber, phone');
     }
-    const reservation_id = "2i1391283129";
-    const checkInDate = "2025-02-02"
-    const checkOutDate = "2025-02-03"
-    const userId = "9fa9253b-8bee-4caa-a0e2-abd2af6a4917"
-    const hotelId = "af46ce9a-1464-44ba-a605-6274b38a6328"
-    const roomId = "799cba45-6234-455b-956c-d5cdd87faeb2"
+    const reservation_id = (0, uuid_1.v4)();
+    const checkInDate = data.checkInDate
+    const checkOutDate = data.checkOutDate
+    const userId = data.userId
+    const hotelId = data.hotelId
+    const roomId = data.roomId
 
     const guestId = (0, uuid_1.v4)();
     await connection.execute(`INSERT INTO reservations (

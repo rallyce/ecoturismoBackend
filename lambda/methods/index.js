@@ -109,9 +109,6 @@ exports.handler = async (event) => {
 
     if (event.httpMethod == "POST") {
       const body = JSON.parse(event.body);
-      // Read table name from environment variable
-
-      // Extract 'hotelId' from the path parameters
       
       const [rows2] = await connection.execute(
           `SELECT * FROM reservations
@@ -141,6 +138,8 @@ exports.handler = async (event) => {
         
         const checkInDate = new Date(body.checkInDate);
         const checkOutDate = new Date(body.checkOutDate);
+        const checkInDateTable = body.checkInDate;
+        const checkOutDateTable = body.checkOutDate;
         const userId = body.userId 
         const hotelId = body.hotelId
         const roomId = body.roomId
@@ -184,20 +183,22 @@ exports.handler = async (event) => {
 
         costo_ponderado = suma + costo_basico;
 
-        /*await connection.execute(`INSERT INTO reservations (reservationId, checkInDate, checkOutDate, userId, hotelId, roomId, basic_value, taxes_value, total_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
-          [reservation_id, checkInDate, checkOutDate, userId, hotelId, roomId, 500, 19, 1000]
-        );*/
-
         const timeDifference = checkOutDate - checkInDate;
         const numberOfNights = timeDifference / (1000 * 60 * 60 * 24);
-
-
+ 
         let subtotal1 = numberOfNights * costo_ponderado 
-        totalReservation = subtotal1 + subtotal2
 
         response = body.status
+        const impuestoSubtotal1 = subtotal1 * 0.19
+        const impuestoSubtotal2 = subtotal2 * 0.19
+        const totalTaxes = impuestoSubtotal1 + impuestoSubtotal2  
+        totalReservation = subtotal1 + subtotal2 + totalTaxes;       
 
         const status = response;
+        await connection.execute(`INSERT INTO reservations (reservationId, checkInDate, checkOutDate, userId, hotelId, roomId, basic_value, taxes_value, total_value) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+          [reservation_id, checkInDateTable, checkOutDateTable, userId, hotelId, roomId, costo_basico, totalImpuestos, totalReservation]
+        );
+        
 
         connection.release();
         return {
@@ -205,9 +206,9 @@ exports.handler = async (event) => {
           headers: {
             "Access-Control-Allow-Origin": "*",  
             "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type"
+            "Access-Control-Allow-Headers": "Content-Type, Authorization"
           },
-          body: JSON.stringify({ status, reservation_id, checkInDate, checkOutDate, userId, hotelId, roomId, additionalServices, costo_basico, numAdults, numChildren, numInfants, totalPeople, subtotal1, subtotal2, totalReservation, numberOfNights }),
+          body: JSON.stringify({ status, reservation_id, checkInDate, checkOutDate, userId, hotelId, roomId, additionalServices, costo_basico, numAdults, numChildren, numInfants, totalPeople, subtotal1, subtotal2, totalTaxes, totalReservation, numberOfNights }),
         };
        
       
