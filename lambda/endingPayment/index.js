@@ -114,7 +114,7 @@ async function handleCreate(connection, body) {
         }));
         // Inserción masiva de huéspedes
         await connection.query(`INSERT INTO guest 
-        (guest_id, name, lastname, identificationType, identificationNumber, phone, emergencyPhone, reservation_id) 
+        (guestId, name, lastname, identificationType, identificationNumber, phone, emergencyPhone, reservationId) 
        VALUES ?`, [guestsWithIds.map(g => [
                 g.guest_id,
                 g.name,
@@ -125,15 +125,36 @@ async function handleCreate(connection, body) {
                 g.emergencyPhone,
                 g.reservation_id
             ])]);
-        // ACTUALIZACIÓN DE PAYMENT (NUEVA FUNCIONALIDAD)
+        // // ACTUALIZACIÓN DE PAYMENT (NUEVA FUNCIONALIDAD)
+        // let paymentUpdated = false;
+        // if (guests[0].reservation_id) {
+        //   const [paymentResult] = await connection.execute(
+        //     `UPDATE payments 
+        //      SET status = 'Reserva en progreso' 
+        //      WHERE paymentId IN (
+        //        SELECT payment_id FROM reservation_payments WHERE reservation_id = ?
+        //      ) AND status = 'Pendiente de pago'`,
+        //     [guests[0].reservation_id]
+        //   );
+        //   paymentUpdated = (paymentResult as any).affectedRows > 0;
+        // }
+        // await connection.commit();
+        // ACTUALIZACIÓN DE PAYMENT - VERSIÓN CORREGIDA
         let paymentUpdated = false;
-        if (guests[0].reservation_id) {
-            const [paymentResult] = await connection.execute(`UPDATE payments 
-         SET status = 'Reserva en progreso' 
-         WHERE paymentId IN (
-           SELECT payment_id FROM reservation_payments WHERE reservation_id = ?
-         ) AND status = 'Pendiente de pago'`, [guests[0].reservation_id]);
-            paymentUpdated = paymentResult.affectedRows > 0;
+        if (guests[0]?.reservation_id) {
+            try {
+                const [paymentResult] = await connection.execute(`
+             UPDATE payments 
+             SET status = 'Reserva en progreso' 
+             WHERE reservation_id = ? 
+             AND status = 'Pendiente de pago'
+             `, [guests[0].reservation_id]);
+                paymentUpdated = paymentResult.affectedRows > 0;
+            }
+            catch (error) {
+                console.error('Error al actualizar estado de pago:', error);
+                throw error;
+            }
         }
         await connection.commit();
         return {
